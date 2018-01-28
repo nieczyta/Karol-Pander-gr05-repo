@@ -1,0 +1,76 @@
+#include "stdafx.h"
+#include <iostream>
+#include <opencv2/core.hpp>
+#include <opencv2/imgproc.hpp>
+#include "opencv2/imgcodecs.hpp"
+#include <opencv2/highgui.hpp>
+#include <opencv2/ml.hpp>
+#include <string>
+#include <tinydir.h>
+#include <vector>
+
+using namespace cv;
+using namespace cv::ml;
+using namespace std;
+
+vector <string> sampleNames;
+vector <int> labels;
+
+void getFiles()
+{
+	string path;
+	cout << "Enter directory of samples: ";
+	cin >> path;
+	tinydir_dir dir;
+	tinydir_open(&dir, path.c_str());
+	while (dir.has_next)
+	{
+		tinydir_file file;
+		tinydir_readfile(&dir, &file);
+		int label = atoi(file.name);
+		string filename = path+"/"+file.name;
+		sampleNames.push_back(filename);
+		labels.push_back(label);
+	}
+	tinydir_close(&dir);
+}
+
+Mat matrix(string filename)
+{
+	Mat mat_2d = imread(filename, 0);
+	Mat mat_1d = mat_2d.clone().reshape(1, 1);
+	return mat_1d;
+}
+
+
+Mat loadnTrain(vector <string> sampleNames, Ptr<SVM> svm, vector <int> labels)
+{
+	Mat trainMat(sampleNames.size(), 28 * 28, CV_32FC1);
+	for (int i = 0; i < sampleNames.size(); i++)
+	{
+		Mat img = imread(sampleNames[i], 0);
+		int l = 0;
+		for (int j = 0; j < 28; j++)
+		{
+			for (int k = 0; k < 28; k++)
+			{
+				trainMat.at<float>(i, l++) = img.at<uchar>(j, k);
+			}
+		}
+	}
+}
+
+int main()
+{
+	int imgsize = 28 * 28;
+	getFiles();
+	Ptr<SVM> svm = SVM::create();
+	svm->setType(SVM::C_SVC);
+	svm->setKernel(SVM::POLY);
+	svm->setTermCriteria(TermCriteria(TermCriteria::MAX_ITER, 10000, 1e-16));
+	svm->setGamma(3);
+	svm->setDegree(3);
+
+	loadnTrain(sampleNames, svm, labels);
+
+}
