@@ -17,11 +17,6 @@ struct trainLabels_str {
 	int trainLabels;
 	trainLabels_str *next;
 };
-struct testLabels_str {
-	int testLabels;
-	testLabels_str *next;
-};
-
 struct trainHOG_str {
 	vector <float> descriptors;
 	trainHOG_str *next;
@@ -195,6 +190,6 @@ int main()
 	Predict(svm, result, testMat);
 
 	std::cout << "It's: " << result;
-  
-  return 0;
+	
+	return 0;
 }
