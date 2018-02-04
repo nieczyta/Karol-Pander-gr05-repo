@@ -1,0 +1,200 @@
+#include "stdafx.h"
+#include <iostream>
+#include <opencv2/imgproc.hpp>
+#include <opencv2/highgui.hpp>
+#include <opencv2/ml.hpp>
+#include "opencv2/objdetect.hpp"
+
+using namespace cv;
+using namespace cv::ml;
+using namespace std;
+
+struct trainCells_str {
+	Mat trainCells;
+	trainCells_str *next;
+};
+struct trainLabels_str {
+	int trainLabels;
+	trainLabels_str *next;
+};
+struct testLabels_str {
+	int testLabels;
+	testLabels_str *next;
+};
+
+struct trainHOG_str {
+	vector <float> descriptors;
+	trainHOG_str *next;
+};
+
+struct descriptors {
+	vector <float> descriptor;
+	descriptors *next;
+};
+
+struct Test {
+	Mat testCell;
+	int testLabel;
+	vector <float> HOG;
+	int HOG_size;
+}test;
+
+HOGDescriptor hog(Size(20, 20), Size(8, 8), Size(4, 4), Size(8, 8), 9, 1, -1, 0, 0.2, 0, 64, 1);
+
+string help()
+{
+	string filename;
+	std::cout << "Enter image directory: " << endl;
+	std::cin >> filename;
+	return filename;
+}
+
+void loadTrain(string &filename, trainCells_str *htrC, trainLabels_str *htrL, int trainCellsCounter)
+{
+	Mat img = imread(filename, CV_LOAD_IMAGE_GRAYSCALE);
+	int counter = 0;
+	for (int i = 0; i < img.rows; i = i + 20)
+	{
+		for (int j = 0; j < img.cols; j = j + 20)
+		{
+			Mat digit = (img.colRange(j, j + 20).rowRange(i, i + 20)).clone();
+			trainCells_str *neew = new trainCells_str;
+			neew->trainCells = digit;
+			neew->next = htrC;
+			htrC = neew;
+			counter++;
+		}
+	}
+	float digitClass = 0;
+	for (int i = 0; i<int(counter); i++)
+	{
+		if (i % 500 == 0 && i != 0)
+		{
+			digitClass++;
+		}
+		trainLabels_str *neew = new trainLabels_str;
+		neew->trainLabels = digitClass;
+		neew->next = htrL;
+		htrL = neew;
+	}
+}
+
+void loadTest(string &filename, struct Test *test)
+{
+	Mat digit = imread(filename);
+	test->testCell = digit;
+}
+
+void trainHOG(HOGDescriptor hog, trainCells_str *htrC, trainHOG_str *htrH, int trainCellsCounter, int trainHOGCounter)
+{
+	for (int i = 0; i < trainCellsCounter; i++)
+	{
+		descriptors *newD = new descriptors;
+		hog.compute(htrC->trainCells, newD->descriptor);
+		trainHOG_str *newTrainHOG = new trainHOG_str;
+		newTrainHOG->descriptors = newD->descriptor;
+		newTrainHOG->next = htrH;
+		htrH = newTrainHOG;
+		trainHOGCounter++;
+	}
+}
+
+void testHOG(Test *test)
+{
+	vector <float> testHOG;
+	hog.compute(test->testCell, testHOG);
+	test->HOG = testHOG;
+}
+
+void trainMatrix(trainHOG_str *htrH, Mat &trainMat, int trainHOGCounter)
+{
+	float descriptorSize = htrH->descriptors.size();
+	trainHOG_str *temptrH = htrH;
+	for (int i = 0; i < trainHOGCounter; i++)
+	{
+		for (int j = 0; j < descriptorSize; j++)
+		{
+			trainMat.at<float>(i, j) = temptrH->descriptors[j];
+		}
+		temptrH = temptrH->next;
+	}
+}
+
+void testMatrix(Test *test, Mat &testMat)
+{
+	for (int i = 0; i < test->HOG_size; i++)
+	{
+		testMat.at<float>(1, i) = test->HOG[i];
+	}
+}
+
+vector <int> vecTrainLabels(trainLabels_str *htrL)
+{
+	vector <int> trainLabel;
+	trainLabels_str *temp = htrL;
+	while (temp != nullptr)
+	{
+		trainLabel.push_back(temp->trainLabels);
+		temp = temp->next;
+	}
+	return trainLabel;
+}
+
+void Train(Ptr<SVM> svm, Mat &trainMat, trainLabels_str *htrL, vector <int> trainLabel)
+{
+	Ptr<TrainData> td = TrainData::create(trainMat, ROW_SAMPLE, trainLabel);
+	svm->train(td);
+	svm->save("results/results.yml");
+}
+
+void Predict(Ptr<SVM> svm, Mat &testResponse, Mat &testMat)
+{
+	svm->predict(testMat, testResponse);
+}
+
+Ptr<SVM> set_svm()
+{
+	Ptr<SVM> svm = SVM::create();
+	svm->setKernel(SVM::RBF);
+	svm->setGamma(0.5);
+	svm->setC(12.5);
+	svm->setType(SVM::C_SVC);
+	return svm;
+}
+
+int main()
+{
+	string testFileName = help();
+	string fileName = "digits.png";
+
+	Ptr<SVM>svm=set_svm();
+
+	int trainCellsCounter = 0;
+	int trainHOGCounter = 0;
+
+	trainCells_str *htrC = nullptr;
+	trainLabels_str *htrL = nullptr;
+	trainHOG_str *htrH = nullptr;
+
+	loadTrain(fileName, htrC, htrL, trainCellsCounter);
+	
+	loadTest(testFileName, &test);
+	
+	Mat trainMat(trainHOGCounter, htrH->descriptors.size(), CV_32FC1);
+	Mat testMat(1, htrH->descriptors.size(), CV_32FC1);
+	
+	trainMatrix(htrH, trainMat, trainHOGCounter);
+	testMatrix(&test, testMat);
+	
+	vector <int> trainLabel = vecTrainLabels(htrL);
+
+	Mat result;
+
+	Train(svm, trainMat, htrL, trainLabel);
+	
+	Predict(svm, result, testMat);
+
+	std::cout << "It's: " << result;
+  
+  return 0;
+}
