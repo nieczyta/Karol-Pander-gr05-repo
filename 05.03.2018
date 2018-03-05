@@ -1,0 +1,54 @@
+#include <stdio.h>
+#define N 5
+
+void load(float * x, int n)
+{
+	for (int i = 0; i < n; i++)
+	{
+		float t;
+		scanf("%f", &t);
+		x[i] = t;
+	}
+}
+
+void print(const float * x, int n)
+{
+	float * p = x + n;	
+	while (x < p)
+	{
+		printf("%f \n", *x);
+		++x;
+	}
+}
+
+void minmax(int *min, int *max, const float *x, int n)
+{
+	*min = 0;
+	*max = 0;
+	for (int i = 0; i < n; i++)
+	{
+		if (x[i] < x[*min])
+		{
+			*min = i;
+		}
+		else if (x[i] > x[*max])
+		{
+			*max = i;
+		}
+	}
+}
+
+int main()
+{
+	float x[N];
+	load(x, N);
+	print(x, N);
+	int min = 0;
+	int max = 0;
+	minmax(&min, &max, x, N);
+	printf("%d \n", min);
+	printf("%f \n", x[min]);
+	printf("%d \n", max);
+	printf("%f \n", x[max]);
+	return 0;
+}
